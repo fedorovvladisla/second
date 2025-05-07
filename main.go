@@ -12,39 +12,46 @@ import (
 )
 
 func main() {
-	// Регистрируем обработчики с точными путями
+
 	http.HandleFunc("/api/rv/", reverseHandler)
+
 	http.HandleFunc("/", dateHandler)
 
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = "5000"
+	port := "5000"
+	if p := os.Getenv("PORT"); p != "" {
+		port = p
 	}
 
-	log.Printf("Server started on port %s", port)
-	log.Fatal(http.ListenAndServe(":"+port, nil))
+	log.Printf("Сервер запущен на порту %s", port)
+
+	err := http.ListenAndServe(":"+port, nil)
+	if err != nil {
+		log.Fatal(err)
+	}
 }
 
 func reverseHandler(w http.ResponseWriter, r *http.Request) {
-	// Удаляем trailing slash если есть
-	path := strings.TrimSuffix(r.URL.Path, "/")
+	prefix := "/api/rv/"
+	path := r.URL.Path
 
-	// Извлекаем ввод после /api/rv/
-	parts := strings.Split(path, "/")
-	if len(parts) < 4 || parts[3] == "" {
-		http.Error(w, `{"error": "Invalid path"}`, http.StatusBadRequest)
+	if !strings.HasPrefix(path, prefix) {
+		http.NotFound(w, r)
 		return
 	}
-	input := parts[3]
-
-	// Проверяем валидность ввода
-	if matched, _ := regexp.MatchString("^[a-z]+$", input); !matched {
-		http.Error(w, `{"error": "Invalid input"}`, http.StatusBadRequest)
+	input := path[len(prefix):]
+	if input == "" {
+		http.NotFound(w, r)
 		return
 	}
 
-	// Возвращаем перевернутую строку
-	fmt.Fprint(w, reverseString(input))
+	matched, err := regexp.MatchString("^[a-z]+$", input)
+	if err != nil || !matched {
+		http.Error(w, "Invalid input", http.StatusBadRequest)
+		return
+	}
+
+	reversed := reverseString(input)
+	fmt.Fprint(w, reversed)
 }
 
 func reverseString(s string) string {
@@ -56,19 +63,14 @@ func reverseString(s string) string {
 }
 
 func dateHandler(w http.ResponseWriter, r *http.Request) {
-	// Удаляем trailing slash
-	path := strings.TrimSuffix(r.URL.Path, "/")
-
-	// Проверяем формат даты в URL
 	now := time.Now()
-	expectedPath := "/" + now.Format("020106")
 
-	if path != expectedPath {
+	expectedPath := "/" + now.Format("020106")
+	if r.URL.Path != expectedPath {
 		http.NotFound(w, r)
 		return
 	}
 
-	// Формируем JSON ответ
 	response := map[string]string{
 		"date":  now.Format("02-01-2006"),
 		"login": "fedorovvlad",
